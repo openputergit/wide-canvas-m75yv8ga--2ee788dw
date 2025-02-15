@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Attendance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-600">College Attendance System</h1>
+        
+        <!-- Add Student and Subject Forms -->
+        <div class="grid md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Add New Student</h2>
+                <form id="studentForm" class="space-y-4">
+                    <input type="text" id="studentName" placeholder="Student Name" required
+                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full">
+                        Add Student
+                    </button>
+                </form>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h2 class="text-xl font-semibold mb-4">Add New Subject</h2>
+                <form id="subjectForm" class="space-y-4">
+                    <input type="text" id="subjectName" placeholder="Subject Name" required
+                        class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full">
+                        Add Subject
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Attendance Section -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold">Today's Attendance</h2>
+                <div class="flex space-x-4">
+                    <select id="subjectSelect" class="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Subject</option>
+                    </select>
+                    <button id="saveAttendance" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Save Attendance
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody">
+                        <!-- Students will be added here dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="loader" class="loader mx-auto mt-4"></div>
+    </div>
+
+    <script type="module">
+        let userId = localStorage.getItem('userId') || 'user_' + Date.now();
+        localStorage.setItem('userId', userId);
+        const appSlug = 'college-attendance-system';
+
+        let students = [];
+        let subjects = [];
+
+        // Initialize DB tables
+        async function initializeTables() {
+            const tables = ['students', 'subjects', 'attendance'];
+            for (let table of tables) {
+                await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer 1SulpXlDhBPQelPgo1a5pvgst2c2',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId,
+                        appSlug,
+                        action: 'read',
+                        table
+                    })
+                });
+            }
+            loadStudents();
+            loadSubjects();
+        }
+
+        async function loadStudents() {
+            const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer 1SulpXlDhBPQelPgo1a5pvgst2c2',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId,
+                    appSlug,
+                    action: 'read',
+                    table: 'students'
+                })
+            });
+            const result = await response.json();
+            students = result.data || [];
+            updateAttendanceTable();
+        }
+
+        async function loadSubjects() {
+            const response = await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer 1SulpXlDhBPQelPgo1a5pvgst2c2',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId,
+                    appSlug,
+                    action: 'read',
+                    table: 'subjects'
+                })
+            });
+            const result = await response.json();
+            subjects = result.data || [];
+            updateSubjectSelect();
+        }
+
+        function updateSubjectSelect() {
+            const select = document.getElementById('subjectSelect');
+            select.innerHTML = '<option value="">Select Subject</option>';
+            subjects.forEach(subject => {
+                const option = document.createElement('option');
+                option.value = subject.id;
+                option.textContent = subject.data.name;
+                select.appendChild(option);
+            });
+        }
+
+        function updateAttendanceTable() {
+            const tbody = document.getElementById('attendanceTableBody');
+            tbody.innerHTML = '';
+            students.forEach(student => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${student.data.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <select class="attendance-select p-2 border rounded" data-student-id="${student.id}">
+                            <option value="present">Present</option>
+                            <option value="absent">Absent</option>
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('studentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('studentName').value;
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer 1SulpXlDhBPQelPgo1a5pvgst2c2',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId,
+                    appSlug,
+                    action: 'create',
+                    table: 'students',
+                    data: { name }
+                })
+            });
+
+            document.getElementById('studentName').value = '';
+            loader.style.display = 'none';
+            await loadStudents();
+        });
+
+        document.getElementById('subjectForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('subjectName').value;
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer 1SulpXlDhBPQelPgo1a5pvgst2c2',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId,
+                    appSlug,
+                    action: 'create',
+                    table: 'subjects',
+                    data: { name }
+                })
+            });
+
+            document.getElementById('subjectName').value = '';
+            loader.style.display = 'none';
+            await loadSubjects();
+        });
+
+        document.getElementById('saveAttendance').addEventListener('click', async () => {
+            const subjectId = document.getElementById('subjectSelect').value;
+            if (!subjectId) {
+                alert('Please select a subject');
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'block';
+
+            const attendance = Array.from(document.querySelectorAll('.attendance-select')).map(select => ({
+                studentId: select.dataset.studentId,
+                status: select.value
+            }));
+
+            await fetch('https://r0c8kgwocscg8gsokogwwsw4.zetaverse.one/db', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer 1SulpXlDhBPQelPgo1a5pvgst2c2',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId,
+                    appSlug,
+                    action: 'create',
+                    table: 'attendance',
+                    data: {
+                        subjectId,
+                        date: new Date().toISOString().split('T')[0],
+                        attendance
+                    }
+                })
+            });
+
+            loader.style.display = 'none';
+            alert('Attendance saved successfully!');
+        });
+
+        // Initialize the application
+        initializeTables();
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
